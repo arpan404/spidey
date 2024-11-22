@@ -39,8 +39,10 @@ class Spidey:
         try:
             with self.lock:
                 while True:
-                    url = list(self.__urls)[0]
-                    self.__urls.remove(url)
+                    if self.__urls:
+                        url = list(self.__urls)[0]
+                        self.__urls.remove(url)
+                    print(url)
                     if url in self.__visted_urls:
                         continue
 
@@ -63,7 +65,7 @@ class Spidey:
                     self.__visted_urls.add(url)
 
         except Exception as e:
-            print(e)
+            print(e.with_traceback)
 
         finally:
             self.executors.submit
@@ -96,7 +98,6 @@ class Spidey:
                         url_components.append(url)
                         new_url = "/".join(url_components)
                         processed_urls.add(new_url)
-                        print(url, "---", new_url)
         except Exception as e:
             print(e.with_traceback)
 
