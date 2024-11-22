@@ -1,7 +1,7 @@
-import requests
-from bs4 import BeautifulSoup
-from typing import Set, List
 import re
+import requests
+from typing import Set, List
+from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 
 from page_data import Pagedata

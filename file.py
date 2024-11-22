@@ -1,10 +1,10 @@
-from webpage import Webpage
 import os
-import tldextract
-import secrets
 import time
-from pathlib import Path
 import json
+import secrets
+import tldextract
+from pathlib import Path
+from webpage import Webpage
 from datetime import datetime
 
 
@@ -13,7 +13,7 @@ class File:
     def write(data: "Webpage"):
         try:
             root_folder: str = os.getcwd()
-            folder: str = tldextract.extract(data.get_values()[0])
+            folder: str = tldextract.extract(data.get_values()[0]).domain
             if (not os.path.exists(folder)):
                 os.mkdir(folder)
             while True:
