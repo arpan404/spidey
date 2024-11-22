@@ -1,4 +1,4 @@
-from spidey import Spidey
+from dev import Spidey
 
-crawler = Spidey("https://nodejs.org/docs/latest/api/http.html")
-crawler.start_crawl()
+crawler = Spidey(["https://nodejs.org/docs/latest/api/http.html"])
+crawler.crawl()
