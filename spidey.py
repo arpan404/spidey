@@ -1,67 +1,87 @@
-import re
+import psutil
 import requests
+import validators
+from file import File
+from webpage import Webpage
 from typing import Set, List
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-
-from page_data import Pagedata
+import threading
 
 
 class Spidey:
-    def __init__(self, initial_url: str):
-        self.root = Pagedata(initial_url)
-        self.visted_url: Set[str] = set()
-        self.executor = ThreadPoolExecutor(max_workers=8) 
-    def start_crawl(self):
-        self.__crawl(self.root)
-        self.executor.shutdown(wait=True)
+    def __init__(self, initial_urls: List[str]):
+        self.__urls: Set[str] = set(initial_urls)
+        available_threads = psutil.cpu_count(logical=True)
+        self.__visted_urls: Set[str] = set()
+        self.executors = ThreadPoolExecutor(max_workers=available_threads)
+        self.lock = threading.Lock()
 
-
-    def __crawl(self, pagedata: Pagedata):
+    def crawl(self):
         try:
-            response_data = requests.get(pagedata.current_url)
-            status_code = response_data.status_code
-            if (status_code != 200):
-                return
-            response_content = BeautifulSoup(
-                response_data.content, "html.parser")
-            urls_found = [link.get("href")
-                          for link in response_content.find_all("a")]
-            if len(urls_found) == 0:
-                return
+            self.__spider()
+        except Exception as e:
+            print(f"Error during crawling: {e}")
+        finally:
+            self.executors.shutdown(wait=True)
 
-            formatted_urls = self.__formatURL(pagedata.current_url, urls_found)
-            if len(formatted_urls) == 0:
-                return
-            for url in formatted_urls:
-                if url not in self.visted_url:
-                    self.visted_url.add(url)
-                    child_page = Pagedata(url)
-                    pagedata.children_pages.append(child_page)
-                    self.__crawl(child_page)
+    def __spider(self):
+        futures = []
 
-                    self.executor.submit(self.__crawl, child_page)
+        for url in self.__urls:
+            futures.append(self.executors.submit(self.__process_pages))
+
+        for future in futures:
+            future.result()
+
+    def __process_pages(self):
+        try:
+            with self.lock:
+                for url in self.__urls:
+                    if url in self.__visted_urls:
+                        continue
+
+                    page_data = requests.get(url)
+
+                    if (page_data.status_code != 200):
+                        continue
+
+                    page_data = BeautifulSoup(page_data.content, "html.parser")
+
+                    File.write(Webpage(url).set_data(page_data))
+
+                    urls_in_page = set([link.get("href")
+                                        for link in page_data.find_all("a")])
+
+                    if not urls_in_page:
+                        continue
+                    processed_urls = self.__process_urls(url, urls_in_page)
+                    # self.__urls.update(processed_urls)
+                    self.__visted_urls.add(url)
+
         except Exception as e:
             print(e)
 
-    def __formatURL(self, current_url: str, urls: List[str]) -> Set[str]:
-        url_pattern = re.compile(
-            r'^(https?:\/\/)'
-            r'([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
-            r'(\/[^\s]*)?$'
-        )
-        formatted_urls = set()
+        finally:
+            self.executors.submit
+
+    def __is_url(self, url: str) -> bool:
+        return validators.url(url)
+
+    def __process_urls(self, current_url: str, urls: Set[str]) -> Set[str]:
+        processed_urls: Set[str] = set()
         for url in urls:
             if url is None:
                 continue
-            if url_pattern.match(url):
-                formatted_urls.add(url)
+
+            if self.__is_url(url):
+                processed_urls.add(url)
             else:
                 if url[0] != "#":
                     url_components = current_url.strip().split("/")
                     url_components.pop()
                     url_components.append(url)
                     new_url = "/".join(url_components)
-                    formatted_urls.add(new_url)
+                    processed_urls.add(new_url)
 
-        return formatted_urls
+        return processed_urls

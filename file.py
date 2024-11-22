@@ -25,7 +25,6 @@ class File:
                 "url": f"{data.get_values()[0]}",
                 "data": f"{data.get_values()[1]}"
             }
-            print(json_data)
             with open(filepath, "w") as file:
                 json.dump(json_data, file, indent=4)
         except Exception as e:
