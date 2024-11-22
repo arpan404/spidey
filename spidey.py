@@ -63,9 +63,9 @@ class Spidey:
                     processed_urls = self.__process_urls(url, urls_in_page)
                     print(f"\nFounded {len(processed_urls)} urls in {url}")
                     self.__urls.update(processed_urls)
-                    print(f"\nCompleted crawling {
-                          len(self.__visted_urls)} / {len(self.__urls)} webpages")
                     self.__visted_urls.add(url)
+                    print(f"\nCompleted crawling {
+                          len(self.__visted_urls)} / {len(self.__urls)+len(self.__visted_urls)} webpages")
 
         except Exception as e:
             print(e.with_traceback)
