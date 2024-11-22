@@ -42,12 +42,12 @@ class Spidey:
                     if self.__urls:
                         url = list(self.__urls)[0]
                         self.__urls.remove(url)
-                    print(url)
                     if url in self.__visted_urls:
                         continue
-
-                    page_data = requests.get(url)
-
+                    try:
+                        page_data = requests.get(url)
+                    except Exception as e:
+                        raise e
                     if (page_data.status_code != 200):
                         continue
 
@@ -61,7 +61,10 @@ class Spidey:
                     if not urls_in_page:
                         continue
                     processed_urls = self.__process_urls(url, urls_in_page)
+                    print(f"\nFounded {len(processed_urls)} urls in {url}")
                     self.__urls.update(processed_urls)
+                    print(f"\nCompleted crawling {
+                          len(self.__visted_urls)} / {len(self.__urls)} webpages")
                     self.__visted_urls.add(url)
 
         except Exception as e:
