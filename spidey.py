@@ -28,7 +28,8 @@ class Spidey:
     def __spider(self):
         futures = []
 
-        for url in self.__urls:
+        urls_to_process = list(self.__urls)
+        for url in urls_to_process:
             futures.append(self.executors.submit(self.__process_pages))
 
         for future in futures:
@@ -37,7 +38,9 @@ class Spidey:
     def __process_pages(self):
         try:
             with self.lock:
-                for url in self.__urls:
+                while True:
+                    url = list(self.__urls)[0]
+                    self.__urls.remove(url)
                     if url in self.__visted_urls:
                         continue
 
@@ -56,7 +59,7 @@ class Spidey:
                     if not urls_in_page:
                         continue
                     processed_urls = self.__process_urls(url, urls_in_page)
-                    # self.__urls.update(processed_urls)
+                    self.__urls.update(processed_urls)
                     self.__visted_urls.add(url)
 
         except Exception as e:
@@ -69,19 +72,32 @@ class Spidey:
         return validators.url(url)
 
     def __process_urls(self, current_url: str, urls: Set[str]) -> Set[str]:
-        processed_urls: Set[str] = set()
-        for url in urls:
-            if url is None:
-                continue
+        try:
+            processed_urls: Set[str] = set()
+            for url in urls:
+                if url is None:
+                    continue
 
-            if self.__is_url(url):
-                processed_urls.add(url)
-            else:
-                if url[0] != "#":
-                    url_components = current_url.strip().split("/")
-                    url_components.pop()
-                    url_components.append(url)
-                    new_url = "/".join(url_components)
-                    processed_urls.add(new_url)
+                if self.__is_url(url):
+                    processed_urls.add(url)
+                else:
+                    if url[0] != "#":
+                        url_components = current_url.strip().split("/")
+                        url_components.pop()
+                        if (url.startswith("../../")):
+                            url_components.pop()
+                            url_components.pop()
+                            url.replace("../../", "", 1)
+                        if url.startswith("../"):
+                            url_components.pop()
+                            url.replace("../", "", 1)
+                        if url[0] == "/":
+                            url = url[1:]
+                        url_components.append(url)
+                        new_url = "/".join(url_components)
+                        processed_urls.add(new_url)
+                        print(url, "---", new_url)
+        except Exception as e:
+            print(e.with_traceback)
 
         return processed_urls
