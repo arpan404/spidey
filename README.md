@@ -4,5 +4,5 @@
 
 ```python
 from spidey import Spidey
-crawler = Spidey(["https://stackoverflow.com/","https://bun.sh/"])
+crawler = Spidey(["https://example.com/","https://example2.com/"])
 crawler.crawl()
