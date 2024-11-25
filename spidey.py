@@ -7,6 +7,7 @@ from typing import Set, List
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import asyncio
 
 
 class Spidey:
@@ -30,7 +31,8 @@ class Spidey:
 
         urls_to_process = list(self.__urls)
         for url in urls_to_process:
-            futures.append(self.executors.submit(self.__process_pages))
+            futures.append(self.executors.submit(
+                self.__process_pages))
 
         for future in futures:
             future.result()
@@ -53,7 +55,7 @@ class Spidey:
 
                     page_data = BeautifulSoup(page_data.content, "html.parser")
 
-                    File.write(Webpage(url).set_data(page_data))
+                    asyncio.run(File.write(Webpage(url).set_data(page_data)))
 
                     urls_in_page = set([link.get("href")
                                         for link in page_data.find_all("a")])
@@ -74,7 +76,10 @@ class Spidey:
             self.executors.submit
 
     def __is_url(self, url: str) -> bool:
-        return validators.url(url)
+        try:
+            return validators.url(url)
+        except Exception as e:
+            raise e
 
     def __process_urls(self, current_url: str, urls: Set[str]) -> Set[str]:
         try:

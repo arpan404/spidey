@@ -2,6 +2,7 @@ import os
 import time
 import json
 import secrets
+import aiofiles
 import tldextract
 from webpage import Webpage
 from datetime import datetime
@@ -9,7 +10,7 @@ from datetime import datetime
 
 class File:
     @staticmethod
-    def write(data: "Webpage"):
+    async def write(data: "Webpage"):
         try:
             root_folder: str = os.getcwd()
             folder: str = os.path.join(root_folder, "data", datetime.now(
@@ -25,8 +26,8 @@ class File:
                 "url": f"{data.get_values()[0]}",
                 "data": f"{data.get_values()[1]}"
             }
-            with open(filepath, "w") as file:
-                json.dump(json_data, file, indent=4)
+            async with aiofiles.open(filepath, "w") as file:
+                await file.write(json.dumps(json_data, indent=4))
         except Exception as e:
             print(e)
 
