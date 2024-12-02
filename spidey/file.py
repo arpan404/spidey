@@ -4,7 +4,7 @@ import json
 import secrets
 import aiofiles
 import tldextract
-from webpage import Webpage
+from .webpage import Webpage
 from datetime import datetime
 
 

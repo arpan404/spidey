@@ -1,6 +1,6 @@
 import validators
-from spidey.file import File
-from spidey.webpage import Webpage
+from .file import File
+from .webpage import Webpage
 from typing import Set, List
 from bs4 import BeautifulSoup
 import asyncio
@@ -19,7 +19,7 @@ class Spidey:
 
     async def __spider(self):
         try:
-            while self.__urls:  
+            while self.__urls:
                 url = self.__urls.popleft()
 
                 if url in self.__visted_urls:
