@@ -12,5 +12,5 @@ class Webpage:
         self.__files_url = files_url
         return self
 
-    def get_values(self) -> Tuple[str, str, List[str]]:
+    def get_values(self) -> Tuple[str, str, Set[str]]:
         return self.__current_url, self.__page_html_data, self.__files_url
