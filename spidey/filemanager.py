@@ -18,7 +18,8 @@ class File:
 
     async def save(self, unique_file_names=True):
         try:
-            pass
+            root_folder: str = os.get_cwd()
+
         except Exception as e:
             print(e)
 
@@ -47,6 +48,8 @@ class File:
         except Exception as e:
             print("Exception occured while fetching and saving the files.")
             raise e
+
+    async def __write_file_details(self):
 
     def __generate_filename(self, extension) -> str:
         timestamp = int(time.time())
