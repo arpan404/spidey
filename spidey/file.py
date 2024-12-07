@@ -15,14 +15,16 @@ import tldextract
 # Local imports
 from spidey.webpage import Webpage
 
+
 class File:
     """
     A class to handle saving webpage data and associated files to disk.
     """
-    def __init__(self, data: 'Webpage', folder: str):
+
+    def __init__(self, data: "Webpage", folder: str):
         """
         Initialize File object with webpage data and output folder.
-        
+
         Args:
             data: Webpage object containing the page data
             folder: Base folder path where files will be saved
@@ -34,15 +36,18 @@ class File:
     async def save(self, unique_file_name=True, extensions=[]):
         """
         Save webpage HTML and optionally download linked files with specified extensions.
-        
+
         Args:
             unique_file_name: Whether to generate unique filenames (default True)
             extensions: List of file extensions to download (e.g. ['.pdf', '.doc'])
         """
         try:
             # Create folder structure: base_folder/date/domain
-            self.__domain_folder = os.path.join(self.__folder, datetime.now(
-            ).date().isoformat(), tldextract.extract(self.__data.current_url).domain)
+            self.__domain_folder = os.path.join(
+                self.__folder,
+                datetime.now().date().isoformat(),
+                tldextract.extract(self.__data.current_url).domain,
+            )
 
             if not os.path.exists(self.__domain_folder):
                 os.makedirs(self.__domain_folder)
@@ -52,8 +57,7 @@ class File:
                 filename: str = self.__generate_filename("html")
                 filepath = os.path.join(self.__domain_folder, filename)
                 if not os.path.exists(filepath):
-                    files_folder_path = os.path.join(
-                        self.__domain_folder, "files")
+                    files_folder_path = os.path.join(self.__domain_folder, "files")
                     if not os.path.exists(files_folder_path):
                         os.makedirs(files_folder_path)
                     break
@@ -69,25 +73,31 @@ class File:
                 self.__data_written["files"] = []
                 if self.__data.files_url:
                     for file in list(self.__data.files_url):
-                        await self.__fetch_and_save_file(file, extensions, unique_file_name)
+                        await self.__fetch_and_save_file(
+                            file, extensions, unique_file_name
+                        )
 
             # Save metadata to JSON file
             if len(filename.split(".")) == 1:
                 details_filepath = os.path.join(
-                    self.__domain_folder, f"{filename}.json")
+                    self.__domain_folder, f"{filename}.json"
+                )
             else:
-                details_filepath = os.path.join(self.__domain_folder, f"{
-                                                filename.split(".")[0]}.json")
+                details_filepath = os.path.join(
+                    self.__domain_folder,
+                    f"{
+                                                filename.split(".")[0]}.json",
+                )
             async with aiofiles.open(details_filepath, "w") as file:
                 await file.write(json.dumps(self.__data_written, indent=4))
 
         except Exception as e:
             print(e)
 
-    async def __fetch_and_save_file(self,  url: str, extensions, unique_file_name=True):
+    async def __fetch_and_save_file(self, url: str, extensions, unique_file_name=True):
         """
         Download and save a file from a given URL.
-        
+
         Args:
             url: URL of the file to download
             extensions: List of allowed file extensions
@@ -101,35 +111,39 @@ class File:
                     if response.status == 200:
                         # Try to get filename from Content-Disposition header
                         content_disposition = response.headers.get(
-                            'Content-Disposition', None)
+                            "Content-Disposition", None
+                        )
                         if content_disposition:
-                            filename = content_disposition.split('filename=')[
-                                1].strip('"')
+                            filename = content_disposition.split("filename=")[1].strip(
+                                '"'
+                            )
                             _, file_extension = os.path.splitext(filename)
                             org_filename = filename
                         else:
                             filename = os.path.basename(urlsplit(url).path)
                             _, file_extension = os.path.splitext(filename)
-                        
+
                         # Generate unique filename if requested
                         if unique_file_name:
                             filename = self.__generate_filename(
-                                file_extension.strip("."))
-                        
+                                file_extension.strip(".")
+                            )
+
                         # Save file if extension matches allowed list
                         if file_extension in extensions:
                             filepath = os.path.join(
-                                self.__domain_folder, "files", filename)
+                                self.__domain_folder, "files", filename
+                            )
                             self.__data_written["files"].append(
                                 {
                                     "url": url,
                                     "original_name": org_filename,
-                                    "saved_as": filename
+                                    "saved_as": filename,
                                 }
                             )
 
                             # Save file contents in chunks
-                            async with aiofiles.open(filepath, 'wb') as file:
+                            async with aiofiles.open(filepath, "wb") as file:
                                 async for chunk in response.content.iter_any():
                                     if chunk:
                                         await file.write(chunk)
@@ -140,10 +154,10 @@ class File:
     def __generate_filename(self, extension) -> str:
         """
         Generate a unique filename using timestamp and random string.
-        
+
         Args:
             extension: File extension to append
-            
+
         Returns:
             String containing unique filename with extension
         """

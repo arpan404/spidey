@@ -20,7 +20,17 @@ class Spidey:
     A web crawler class that crawls web pages and downloads files with specified extensions.
     """
 
-    def __init__(self, urls: List[str], extensions: List[str], limited_to_domains: bool = False, max_pages: int = 1000, sleep_time: int = 0, restricted_domains: List[str] = [], folder="", unique_file_name=True):
+    def __init__(
+        self,
+        urls: List[str],
+        extensions: List[str],
+        limited_to_domains: bool = False,
+        max_pages: int = 1000,
+        sleep_time: int = 0,
+        restricted_domains: List[str] = [],
+        folder="",
+        unique_file_name=True,
+    ):
         """
         Initialize the Spidey crawler.
 
@@ -87,7 +97,10 @@ class Spidey:
 
                 # Extract and process links from page
                 pages_urls = set(
-                    link.get("href") for link in page_data.find_all("a") if link.get("href"))
+                    link.get("href")
+                    for link in page_data.find_all("a")
+                    if link.get("href")
+                )
 
                 if pages_urls:
                     processed_urls = self.__process_urls(url, pages_urls)
@@ -98,8 +111,14 @@ class Spidey:
                 self.__visited_urls.add(url)
 
                 # Extract URLs of embedded files (images, scripts, etc)
-                files_urls = set(link.get(attr) for link in page_data.find_all(
-                    ["img", "link", "script", "video", "source"]) for attr in ["href", "src"] if link.get(attr))
+                files_urls = set(
+                    link.get(attr)
+                    for link in page_data.find_all(
+                        ["img", "link", "script", "video", "source"]
+                    )
+                    for attr in ["href", "src"]
+                    if link.get(attr)
+                )
 
                 if files_urls:
                     processed_urls = self.__process_urls(url, files_urls)
@@ -113,11 +132,11 @@ class Spidey:
                 # Save webpage and associated files
                 file = File(webpage, self.__folder)
                 await file.save(self.__unique_file_name, self.__extensions)
-                
+
                 # Stop if max pages reached
                 if len(self.__visited_urls) == self.__max_pages:
                     break
-                    
+
                 sleep(self.__sleep_time)
         except Exception as e:
             print(f"An error occurred: {e}")
@@ -125,10 +144,10 @@ class Spidey:
     def get_url_domain(self, url):
         """
         Extract domain from URL.
-        
+
         Args:
             url: URL to extract domain from
-            
+
         Returns:
             Domain name with TLD (e.g. 'example.com')
         """
@@ -138,17 +157,19 @@ class Spidey:
     async def __fetch_data(self, url: str):
         """
         Fetch webpage content from URL.
-        
+
         Args:
             url: URL to fetch
-            
+
         Returns:
             Page content as text, or None if fetch fails
         """
         try:
             if not isinstance(url, str):
-                raise ValueError(f"The URL must be a string, but got {
-                                 type(url).__name__}")
+                raise ValueError(
+                    f"The URL must be a string, but got {
+                                 type(url).__name__}"
+                )
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     response.raise_for_status()
@@ -159,10 +180,10 @@ class Spidey:
     def __is_url(self, url: str) -> bool:
         """
         Validate if string is a valid URL.
-        
+
         Args:
             url: String to validate
-            
+
         Returns:
             True if valid URL, False otherwise
         """
@@ -174,11 +195,11 @@ class Spidey:
     def __process_urls(self, current_url: str, urls: Set[str]) -> Set[str]:
         """
         Process and normalize relative URLs to absolute URLs.
-        
+
         Args:
             current_url: Base URL for resolving relative URLs
             urls: Set of URLs to process
-            
+
         Returns:
             Set of processed absolute URLs
         """
@@ -195,12 +216,12 @@ class Spidey:
                         url_components = current_url.strip().split("/")
                         url_components.pop()
 
-                        if (url.startswith("../")):
+                        if url.startswith("../"):
                             total_dashes = url.count("../")
                             for i in range(total_dashes):
                                 url_components.pop()
                                 url.replace("../", "", 1)
-                                if (not url.startswith("../")):
+                                if not url.startswith("../"):
                                     break
 
                         if url[0] == "/":

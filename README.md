@@ -55,30 +55,29 @@ data/
 ## Features in Detail
 
 ### File Downloads
-
-- Automatically downloads files matching specified extensions
-- Supports various file types (images, documents, etc.)
-- Maintains original file structure with metadata
+- Automatically downloads files with specified extensions (.pdf, .jpg, .png, etc.)
+- Preserves original filenames with optional unique ID generation
+- Organizes downloads by date and domain for easy management
+- Stores metadata including source URL and timestamp
+- Handles both direct file links and embedded resources (images, scripts, stylesheets)
 
 ### Domain Control
-
-- Option to limit crawling to initial domains
-- Domain restriction list for excluding specific sites
-- Automatic domain extraction and validation
+- Flexible domain scoping with multiple options:
+  - Crawl any linked domain
+  - Restrict to initial domain list only
+  - Exclude specific domains via blocklist
+- Smart domain extraction using tldextract
+- Proper handling of subdomains and TLDs
+- Validation of domain names and URLs
 
 ### Asynchronous Operation
+- High-performance concurrent crawling with aiohttp
+- Non-blocking I/O for optimal resource usage
+- Configurable delays between requests to control load
+- Graceful error handling and recovery
+- Progress tracking and status reporting
+- Memory-efficient processing of large sites
 
-- Fast, non-blocking network operations
-- Efficient resource utilization
-- Built with aiohttp for optimal performance
-
-## Dependencies
-
-- aiohttp
-- beautifulsoup4
-- tldextract
-- validators
-- aiofiles
 
 ## License
 
@@ -106,28 +105,38 @@ SOFTWARE.
 
 ## Contributing
 
-We welcome and encourage contributions to Spidey! Here's how you can help:
+We welcome and appreciate contributions to Spidey! Whether you're fixing bugs, adding features, or improving documentation, here's how you can contribute:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork the repository to your GitHub account
+2. Create a descriptive feature branch (`git checkout -b feature/add-retry-logic`)
+3. Make focused, well-tested changes
+4. Commit with clear messages (`git commit -m 'Add request retry logic with exponential backoff'`) 
+5. Push changes to your fork (`git push origin feature/add-retry-logic`)
+6. Open a detailed Pull Request describing your changes
 
 ### Guidelines
 
-- Ensure your code follows the existing style and conventions
-- Add/update documentation for any new features
-- Write clear commit messages
-- Include tests for new functionality
-- Update the README if needed
+- Follow PEP 8 style guide and match existing code conventions
+- Add comprehensive docstrings and type hints to new code
+- Write descriptive commit messages explaining the why, not just what
+- Include unit tests with good coverage for new functionality
+- Update documentation including docstrings, README, and comments
+- Keep pull requests focused on a single feature or fix
+- Run the full test suite before submitting
 
 ### Development Setup
 
-1. Clone your fork of the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Create a new branch for your changes
-4. Make your changes and test thoroughly
-5. Submit a pull request with a description of your changes
+1. Clone your fork: `git clone https://github.com/YOUR_USERNAME/spidey.git`
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
+   ```
+3. Install dependencies: `pip install -r requirements.txt`
+4. Install dev dependencies: `pip install pytest black mypy`
+5. Create a branch: `git checkout -b your-feature-name`
+6. Make changes and run tests: `pytest`
+7. Format code: `black .`
 
-For major changes, please open an issue first to discuss what you would like to change. This helps ensure your time is well spent and your contribution will be accepted.
+For significant changes, please open an issue first to discuss your proposed changes. This ensures alignment with project goals and helps avoid duplicate work. We aim to review all pull requests within a week.
