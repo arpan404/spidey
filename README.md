@@ -16,12 +16,12 @@ Spidey is a powerful asynchronous web crawler built in Python that can crawl web
 ## Example Usage
 
 ```python
-import spidey
+from spidey import Spidey
 import os
 
 folder = os.path.join(os.getcwd(), "data")
 urls_to_crawl = ["https://example.com"]
-crawler = spidey.Spidey(urls=urls_to_crawl, extensions=[".png", ".js", ".css"], limited_to_domains=False, max_pages=100, sleep_time=0, folder=folder)
+crawler = Spidey(urls=urls_to_crawl, extensions=[".png", ".js", ".css"], limited_to_domains=False, max_pages=100, sleep_time=0, folder=folder)
 
 crawler.crawl()
 ```
