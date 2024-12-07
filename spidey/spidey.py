@@ -1,6 +1,6 @@
 import tldextract
 import validators
-from spidey.filemanager import File
+from spidey.file import File
 from spidey.webpage import Webpage
 from typing import Set, List
 from bs4 import BeautifulSoup
