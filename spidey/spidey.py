@@ -130,6 +130,6 @@ class Spidey:
                         new_url = "/".join(url_components)
                         processed_urls.add(new_url)
         except Exception as e:
-            print(e.with_traceback)
+            print(e)
 
         return processed_urls
