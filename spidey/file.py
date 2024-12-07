@@ -42,6 +42,7 @@ class File:
             details_filepath = filename.split(".")[-1]
             async with aiofiles.open(details_filepath, "w") as file:
                 await file.write(json.dumps(self.__data_written, indent=4))
+
         except Exception as e:
             print(e)
 
