@@ -134,9 +134,9 @@ We welcome and appreciate contributions to Spidey! Whether you're fixing bugs, a
    venv\Scripts\activate     # Windows
    ```
 3. Install dependencies: `pip install -r requirements.txt`
-4. Install dev dependencies: `pip install pytest black mypy`
+4. Install dev dependencies: `pip install black mypy`
 5. Create a branch: `git checkout -b your-feature-name`
-6. Make changes and run tests: `pytest`
+6. Make changes
 7. Format code: `black .`
 
 For significant changes, please open an issue first to discuss your proposed changes. This ensures alignment with project goals and helps avoid duplicate work. We aim to review all pull requests within a week.
