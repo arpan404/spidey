@@ -36,7 +36,7 @@ class Spidey:
             while self.__urls:
                 url = self.__urls.popleft()
 
-                if url in self.__visted_urls:
+                if url in self.__visited_urls:
                     continue
 
                 if self.get_url_domain(url) in self.__restricted_domains:
@@ -49,7 +49,7 @@ class Spidey:
                 response = await self.__fetch_data(url)
                 if response is None:
                     continue
-                webpage = Webpage(url, self.__folder)
+                webpage = Webpage(url)
 
                 page_data = BeautifulSoup(response, "html.parser")
                 webpage.page_html_data = page_data

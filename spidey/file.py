@@ -20,25 +20,26 @@ class File:
     async def save(self, unique_file_name=True, extensions=[]):
         try:
             folder = os.path.join(self.__folder, datetime.now(
-            ).date().isoformat(), tldextract.extract(self.data.current_url).domain)
+            ).date().isoformat(), tldextract.extract(self.__data.current_url).domain)
 
             if not os.path.exists(folder):
                 os.makedirs(folder)
 
             while True:
-                filename: str = self.__generate_filename(".html")
+                filename: str = self.__generate_filename("html")
                 filepath = os.path.join(folder, filename)
                 if not os.path.exists(filepath):
                     break
 
-            async with aiofiles.open(filepath) as file:
-                await file.write(self.__data.page_html_data)
+            async with aiofiles.open(filepath, "w") as file:
+                await file.write(str(self.__data.page_html_data))
                 self.__data_written["url"] = self.__data.current_url
                 self.__data_written["file_name"] = filename
             if extensions:
                 self.__data_written["files"] = []
-                for file in self.__data.files_url:
-                    await self.__fetch_and_save_file(file, extensions, unique_file_name)
+                if self.__data.files_url:
+                    for file in self.__data.files_url:
+                        await self.__fetch_and_save_file(file, extensions, unique_file_name)
             details_filepath = filename.split(".")[-1]
             async with aiofiles.open(details_filepath, "w") as file:
                 await file.write(json.dumps(self.__data_written, indent=4))
