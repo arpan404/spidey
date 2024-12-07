@@ -69,8 +69,13 @@ class Spidey:
                     ["img", "link", "script", "video", "source"]) for attr in ["href", "src"] if link.get(attr))
 
                 if files_urls:
-                    processed_urls = self.__process_urls(url, pages_urls)
-                    webpage.files_url = processed_urls
+                    processed_urls = self.__process_urls(url, files_urls)
+                    validated_urls = processed_urls.copy()
+                    for url in processed_urls:
+                        if url in self.__visited_urls:
+                            validated_urls.remove(url)
+
+                    webpage.files_url = validated_urls
 
                 file = File(webpage, self.__folder)
                 await file.save(self.__unique_file_name, self.__extensions)

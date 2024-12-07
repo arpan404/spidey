@@ -19,28 +19,38 @@ class File:
 
     async def save(self, unique_file_name=True, extensions=[]):
         try:
-            folder = os.path.join(self.__folder, datetime.now(
+            self.__domain_folder = os.path.join(self.__folder, datetime.now(
             ).date().isoformat(), tldextract.extract(self.__data.current_url).domain)
 
-            if not os.path.exists(folder):
-                os.makedirs(folder)
+            if not os.path.exists(self.__domain_folder):
+                os.makedirs(self.__domain_folder)
 
             while True:
                 filename: str = self.__generate_filename("html")
-                filepath = os.path.join(folder, filename)
+                filepath = os.path.join(self.__domain_folder, filename)
                 if not os.path.exists(filepath):
+                    files_folder_path = os.path.join(
+                        self.__domain_folder, "files")
+                    if not os.path.exists(files_folder_path):
+                        os.makedirs(files_folder_path)
                     break
 
             async with aiofiles.open(filepath, "w") as file:
                 await file.write(str(self.__data.page_html_data))
                 self.__data_written["url"] = self.__data.current_url
                 self.__data_written["file_name"] = filename
+
             if extensions:
                 self.__data_written["files"] = []
                 if self.__data.files_url:
-                    for file in self.__data.files_url:
+                    for file in list(self.__data.files_url):
                         await self.__fetch_and_save_file(file, extensions, unique_file_name)
-            details_filepath = filename.split(".")[-1]
+            if len(filename.split(".")) == 1:
+                details_filepath = os.path.join(
+                    self.__domain_folder, f"{filename}.json")
+            else:
+                details_filepath = os.path.join(self.__domain_folder, f"{
+                                                filename.split(".")[0]}.json")
             async with aiofiles.open(details_filepath, "w") as file:
                 await file.write(json.dumps(self.__data_written, indent=4))
 
@@ -66,10 +76,10 @@ class File:
                             _, file_extension = os.path.splitext(filename)
                         if unique_file_name:
                             filename = self.__generate_filename(
-                                file_extension)
+                                file_extension.strip("."))
                         if file_extension in extensions:
                             filepath = os.path.join(
-                                self.folder, "files", filename)
+                                self.__domain_folder, "files", filename)
                             self.__data_written["files"].append(
                                 {
                                     "url": url,
@@ -77,14 +87,14 @@ class File:
                                     "saved_as": filename
                                 }
                             )
-                            async with aiofiles.open(filepath, 'wb') as file:
 
-                                async for chunk in response.content.iter_any(1024):
+                            async with aiofiles.open(filepath, 'wb') as file:
+                                async for chunk in response.content.iter_any():
                                     if chunk:
                                         await file.write(chunk)
         except Exception as e:
             print("Exception occured while fetching and saving the files.")
-            raise e
+            print(e)
 
     def __generate_filename(self, extension) -> str:
         timestamp = int(time.time())
