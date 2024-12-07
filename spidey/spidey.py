@@ -12,7 +12,7 @@ from time import sleep
 
 class Spidey:
 
-    def __init__(self, urls: List[str], extensions: List[str], limited_to_domains: bool = False, max_pages: int = 1000, sleep_time: int = 0, restricted_domains: List[str] = [], folder=""):
+    def __init__(self, urls: List[str], extensions: List[str], limited_to_domains: bool = False, max_pages: int = 1000, sleep_time: int = 0, restricted_domains: List[str] = [], folder="", unique_file_name=True):
         self.__urls = deque(urls)
         self.__visited_urls: Set[str] = set()
         self.__total_urls: int = len(urls)
@@ -23,6 +23,7 @@ class Spidey:
         self.__initial_domains = set()
         self.__max_pages: int = max_pages
         self.__folder = folder
+        self.__unique_file_name = unique_file_name
 
     def crawl(self):
         asyncio.run(self.__spider())
@@ -33,7 +34,6 @@ class Spidey:
                 self.__initial_domains.add(self.get_url_domain(url))
 
             while self.__urls:
-
                 url = self.__urls.popleft()
 
                 if url in self.__visted_urls:
@@ -71,9 +71,12 @@ class Spidey:
                 if files_urls:
                     processed_urls = self.__process_urls(url, pages_urls)
                     webpage.files_url = processed_urls
-                webpage.save(unique_file_names=True)
+
+                file = File(webpage, self.__folder)
+                await file.save(self.__unique_file_name, self.__extensions)
                 if len(self.__visited_urls) == self.__max_pages:
                     break
+                sleep(self.__sleep_time)
         except Exception as e:
             print(f"An error occurred: {e}")
 
