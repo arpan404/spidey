@@ -8,7 +8,7 @@ setup(
     version="1.0.0",
     author="Arpan Bhandari",
     author_email="arpan@socioy.com",
-    description="Spidey crawls the web and save the crawled data in json format locally.",
+    description="Spidey crawls the web and save the crawled data in folder structure.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/arpan404/spidey",
