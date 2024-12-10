@@ -2,3 +2,5 @@
 /data
 .DS_Store
 example.py
+.pytest_cache
+spidey/__pycache__
