@@ -50,7 +50,7 @@ class Spidey:
         extensions: List[str],
         limited_to_domains: bool = False,
         max_pages: int = 1000,
-        sleep_time: float = 0,
+        sleep_time: float = 1.0,
         restricted_domains: Optional[List[str]] = None,
         folder: str = "",
         unique_file_name: bool = True,
@@ -59,6 +59,9 @@ class Spidey:
         retry_delay: float = 1.0,
         request_timeout: float = 30.0,
         max_concurrent_requests: int = 50,
+        respect_robots_txt: bool = True,
+        user_agent: Optional[str] = None,
+        min_delay_between_requests: float = 1.0,
     ):
         """Create Spidey instance from constructor arguments."""
         config = Config(
@@ -75,6 +78,9 @@ class Spidey:
             retry_delay=retry_delay,
             request_timeout=request_timeout,
             max_concurrent_requests=max_concurrent_requests,
+            respect_robots_txt=respect_robots_txt,
+            user_agent=user_agent,
+            min_delay_between_requests=min_delay_between_requests,
         )
         return cls(config)
 
@@ -146,11 +152,10 @@ class Spidey:
 
     async def _init_domains(self):
         """Extract initial domains from starting URLs."""
-        initial = self._url_queue.get_batch(self._url_queue.size())
-        for url in initial:
+        self._url_queue.add_batch(self._config.urls)
+        for url in self._config.urls:
             domain = self._get_url_domain(url)
             self._initial_domains.add(domain)
-        self._url_queue.add_batch(initial)
 
     async def _monitor_progress(self):
         """Monitor and report progress."""
@@ -162,16 +167,16 @@ class Spidey:
                 break
 
             url_count = self._url_queue.size()
-            page_count = len(self._visited_pages)
             storage_stats = self._storage.get_stats()
 
             stats = {
-                "pages_visited": page_count,
                 "urls_queued": url_count,
                 "files_saved": storage_stats["files_saved"],
                 "files_skipped": storage_stats["files_skipped"],
             }
             self._controller.update_stats(**stats)
+
+            page_count = self._controller.get_stats().pages_visited
 
             logger.info(
                 f"Progress: Pages={page_count}/{self._config.max_pages}, "
@@ -182,6 +187,7 @@ class Spidey:
             self._controller.emit_event("progress", stats)
 
             if url_count == 0 and page_count >= self._config.max_pages // 2:
+                self._controller.stop()
                 break
 
     async def _url_worker(self, worker_id: int, fetcher: Fetcher):
@@ -219,7 +225,9 @@ class Spidey:
             filtered_urls = [u for u in new_page_urls if self._is_allowed(u)]
             self._url_queue.add_batch(filtered_urls)
 
-            self._controller.increment_stats(urls_discovered=len(filtered_urls))
+            self._controller.increment_stats(
+                urls_discovered=len(filtered_urls), pages_visited=1
+            )
 
             file_urls = Parser.extract_file_urls(html, url)
             for file_url in file_urls:
