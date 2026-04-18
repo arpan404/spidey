@@ -8,19 +8,16 @@ import tldextract
 import validators
 
 from .config import Config
-from .exceptions import ValidationError
 from .fetcher import Fetcher
 from .parser import Parser
 from .queue import URLQueue
 from .file_queue import FileQueue
 from .storage import Storage
-from .webpage import Webpage
-from .controller import Controller, CrawlerState, CrawlStats, CrawlEvent
+from .controller import Controller, CrawlerState, CrawlStats
 
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -28,7 +25,7 @@ logger = logging.getLogger(__name__)
 class Spidey:
     """
     A robust, modular asynchronous web crawler with full control.
-    
+
     Features:
     - Pause/Resume/Stop control
     - Real-time stats and events
@@ -229,13 +226,14 @@ class Spidey:
                 if self._is_allowed_file(file_url):
                     self._file_queue.put(file_url, url)
 
-            self._controller.emit_event("page_crawled", {
-                "url": url,
-                "new_urls": len(filtered_urls),
-                "files": len(file_urls)
-            })
+            self._controller.emit_event(
+                "page_crawled",
+                {"url": url, "new_urls": len(filtered_urls), "files": len(file_urls)},
+            )
 
-            logger.debug(f"Processed {url}: {len(filtered_urls)} new URLs, {len(file_urls)} files")
+            logger.debug(
+                f"Processed {url}: {len(filtered_urls)} new URLs, {len(file_urls)} files"
+            )
 
         except Exception as e:
             logger.error(f"Error processing {url}: {e}")
@@ -273,14 +271,12 @@ class Spidey:
 
             if saved_path:
                 self._controller.increment_stats(
-                    files_saved=1,
-                    bytes_downloaded=len(content)
+                    files_saved=1, bytes_downloaded=len(content)
                 )
-                self._controller.emit_event("file_saved", {
-                    "url": url,
-                    "checksum": checksum,
-                    "size": len(content)
-                })
+                self._controller.emit_event(
+                    "file_saved",
+                    {"url": url, "checksum": checksum, "size": len(content)},
+                )
             else:
                 self._controller.increment_stats(files_skipped=1)
 
@@ -321,6 +317,7 @@ class Spidey:
     def _get_file_extension(self, url: str) -> str:
         """Extract file extension from URL."""
         from urllib.parse import urlsplit
+
         path = urlsplit(url).path
         ext = path.rsplit(".", 1)[-1] if "." in path else ""
         return f".{ext.lower()}" if ext else ""
@@ -328,7 +325,6 @@ class Spidey:
     def _print_stats(self, fetcher: Fetcher):
         """Print final statistics."""
         fetcher_stats = fetcher.get_stats()
-        storage_stats = self._storage.get_stats()
         final_stats = self._controller.get_stats()
 
         logger.info("=" * 50)
@@ -346,10 +342,13 @@ class Spidey:
         logger.info(f"Duration: {final_stats.duration:.2f}s")
         logger.info("=" * 50)
 
-        self._controller.emit_event("crawl_complete", {
-            "stats": {
-                "pages_visited": final_stats.pages_visited,
-                "files_saved": final_stats.files_saved,
-                "duration": final_stats.duration
-            }
-        })
+        self._controller.emit_event(
+            "crawl_complete",
+            {
+                "stats": {
+                    "pages_visited": final_stats.pages_visited,
+                    "files_saved": final_stats.files_saved,
+                    "duration": final_stats.duration,
+                }
+            },
+        )

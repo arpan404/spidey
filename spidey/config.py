@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List
 
 
 @dataclass
@@ -22,7 +22,7 @@ class Config:
 
     def __post_init__(self):
         self.extensions = [
-            ext.lower() if ext.startswith('.') else f'.{ext.lower()}'
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
             for ext in self.extensions
         ]
 

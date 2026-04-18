@@ -21,6 +21,7 @@ class CrawlerState(Enum):
 @dataclass
 class CrawlStats:
     """Statistics for the crawl session."""
+
     pages_visited: int = 0
     urls_discovered: int = 0
     urls_queued: int = 0
@@ -49,6 +50,7 @@ class CrawlStats:
 @dataclass
 class CrawlEvent:
     """Event emitted during crawling."""
+
     type: str
     timestamp: datetime = field(default_factory=datetime.now)
     data: Dict[str, Any] = field(default_factory=dict)
@@ -99,7 +101,7 @@ class Controller:
         self._stop_event.clear()
 
     @property
-    def state(self) -> CrawlState:
+    def state(self) -> CrawlerState:
         with self._state_lock:
             return self._state
 
@@ -108,10 +110,12 @@ class Controller:
             old_state = self._state
             self._state = new_state
             logger.info(f"State changed: {old_state.value} -> {new_state.value}")
-            self._events.emit(CrawlEvent(
-                type="state_changed",
-                data={"old": old_state.value, "new": new_state.value}
-            ))
+            self._events.emit(
+                CrawlEvent(
+                    type="state_changed",
+                    data={"old": old_state.value, "new": new_state.value},
+                )
+            )
 
     def start(self):
         """Mark crawler as started."""

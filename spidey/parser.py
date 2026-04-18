@@ -1,11 +1,9 @@
 import logging
-from typing import List, Set, Optional
+from typing import Set, Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 import validators
-
-from .exceptions import ValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,9 @@ class Parser:
         """Detect content type from HTML."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            meta = soup.find("meta", {"http-equiv": lambda x: x and x.lower() == "content-type"})
+            meta = soup.find(
+                "meta", {"http-equiv": lambda x: x and x.lower() == "content-type"}
+            )
             if meta:
                 return meta.get("content", "")
 

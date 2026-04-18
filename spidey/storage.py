@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import logging
 import os
@@ -18,16 +17,17 @@ class Storage:
     def __init__(self, folder: str):
         self._folder = Path(folder)
         self._processed_checksums: Set[str] = set()
-        self._stats = {
-            "files_saved": 0,
-            "files_skipped": 0,
-            "bytes_written": 0
-        }
+        self._stats = {"files_saved": 0, "files_skipped": 0, "bytes_written": 0}
 
     def _compute_checksum(self, data: bytes) -> str:
         return hashlib.sha256(data).hexdigest()
 
-    def _get_extension(self, url: str, content: Optional[bytes] = None, content_type: Optional[str] = None) -> str:
+    def _get_extension(
+        self,
+        url: str,
+        content: Optional[bytes] = None,
+        content_type: Optional[str] = None,
+    ) -> str:
         """Determine file extension from URL, content, or content-type."""
         parsed = urlsplit(url)
         ext = os.path.splitext(parsed.path)[1].lower()
@@ -58,7 +58,9 @@ class Storage:
         """Check if checksum was already processed (in-memory only)."""
         return checksum in self._processed_checksums
 
-    async def save_file(self, url: str, content: bytes, content_type: Optional[str] = None) -> Optional[str]:
+    async def save_file(
+        self, url: str, content: bytes, content_type: Optional[str] = None
+    ) -> Optional[str]:
         """Save file with checksum filename. Returns path if saved, None if duplicate/skipped."""
         checksum = self._compute_checksum(content)
 

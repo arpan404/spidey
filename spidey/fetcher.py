@@ -1,11 +1,11 @@
 import asyncio
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 import aiohttp
 from aiohttp import ClientTimeout
 
-from .exceptions import FetchError, RateLimitError
+
 from .config import Config
 
 
@@ -44,25 +44,23 @@ class Fetcher:
         self._session: Optional[aiohttp.ClientSession] = None
         self._rate_limiter = RateLimiter(
             rate=config.max_concurrent_requests / 10,
-            burst=config.max_concurrent_requests
+            burst=config.max_concurrent_requests,
         )
         self._stats: Dict[str, int] = {
             "total_requests": 0,
             "successful_requests": 0,
             "failed_requests": 0,
-            "retries": 0
+            "retries": 0,
         }
 
     async def __aenter__(self):
         connector = aiohttp.TCPConnector(
             limit=self._config.max_concurrent_requests,
-            limit_per_host=self._config.num_workers
+            limit_per_host=self._config.num_workers,
         )
         timeout = ClientTimeout(total=self._config.request_timeout)
         self._session = aiohttp.ClientSession(
-            connector=connector,
-            timeout=timeout,
-            headers={"User-Agent": "Spidey/1.0"}
+            connector=connector, timeout=timeout, headers={"User-Agent": "Spidey/1.0"}
         )
         return self
 
@@ -78,10 +76,15 @@ class Fetcher:
         if referrer:
             headers["Referer"] = referrer
 
+        session = self._session
+        assert session is not None, (
+            "Session not initialized. Use async with Fetcher(config):"
+        )
+
         for attempt in range(self._config.max_retries):
             try:
                 self._stats["total_requests"] += 1
-                async with self._session.get(url, headers=headers) as response:
+                async with session.get(url, headers=headers) as response:
                     if response.status == 429:
                         retry_after = int(response.headers.get("Retry-After", 5))
                         logger.warning(f"Rate limited, waiting {retry_after}s")
@@ -96,12 +99,14 @@ class Fetcher:
             except aiohttp.ClientError as e:
                 logger.debug(f"Attempt {attempt + 1} failed for {url}: {e}")
                 if attempt < self._config.max_retries - 1:
-                    delay = self._config.retry_delay * (2 ** attempt)
+                    delay = self._config.retry_delay * (2**attempt)
                     await asyncio.sleep(delay)
                     self._stats["retries"] += 1
                 else:
                     self._stats["failed_requests"] += 1
-                    logger.error(f"Failed to fetch {url} after {self._config.max_retries} attempts")
+                    logger.error(
+                        f"Failed to fetch {url} after {self._config.max_retries} attempts"
+                    )
 
             except Exception as e:
                 logger.error(f"Unexpected error fetching {url}: {e}")
@@ -110,7 +115,9 @@ class Fetcher:
 
         return None
 
-    async def fetch_bytes(self, url: str, referrer: Optional[str] = None) -> Optional[bytes]:
+    async def fetch_bytes(
+        self, url: str, referrer: Optional[str] = None
+    ) -> Optional[bytes]:
         """Fetch URL and return raw bytes."""
         await self._rate_limiter.acquire()
 
@@ -118,10 +125,15 @@ class Fetcher:
         if referrer:
             headers["Referer"] = referrer
 
+        session = self._session
+        assert session is not None, (
+            "Session not initialized. Use async with Fetcher(config):"
+        )
+
         for attempt in range(self._config.max_retries):
             try:
                 self._stats["total_requests"] += 1
-                async with self._session.get(url, headers=headers) as response:
+                async with session.get(url, headers=headers) as response:
                     if response.status == 429:
                         retry_after = int(response.headers.get("Retry-After", 5))
                         logger.warning(f"Rate limited, waiting {retry_after}s")
@@ -136,12 +148,14 @@ class Fetcher:
             except aiohttp.ClientError as e:
                 logger.debug(f"Attempt {attempt + 1} failed for {url}: {e}")
                 if attempt < self._config.max_retries - 1:
-                    delay = self._config.retry_delay * (2 ** attempt)
+                    delay = self._config.retry_delay * (2**attempt)
                     await asyncio.sleep(delay)
                     self._stats["retries"] += 1
                 else:
                     self._stats["failed_requests"] += 1
-                    logger.error(f"Failed to fetch {url} after {self._config.max_retries} attempts")
+                    logger.error(
+                        f"Failed to fetch {url} after {self._config.max_retries} attempts"
+                    )
 
             except Exception as e:
                 logger.error(f"Unexpected error fetching {url}: {e}")

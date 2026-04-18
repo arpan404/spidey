@@ -1,7 +1,7 @@
 import logging
 import threading
 from collections import deque
-from typing import List, Optional, Set
+from typing import List, Set
 
 
 logger = logging.getLogger(__name__)
