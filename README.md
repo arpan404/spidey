@@ -1,142 +1,193 @@
 # Spidey Web Crawler
 
-Spidey is a powerful asynchronous web crawler built in Python that can crawl websites and download files with specified extensions. It's designed to be efficient, configurable, and easy to use.
+A robust, modular asynchronous web crawler built in Python that crawls websites and downloads files with specified extensions.
 
 ## Features
 
-- ⚡ Asynchronous web crawling using aiohttp
-- 📂 Download files with specific extensions
-- 🔒 Domain restrictions and filtering
-- ⚙️ Configurable crawl limits and delays
-- 📁 Organized file storage by date and domain
-- 🔄 Unique file naming system
-- 🕸️ Support for relative and absolute URLs
-- 🗃️ Automatic metadata generation
+- **Parallel crawling** - Multiple async workers for URL fetching and file downloads
+- **SHA256 deduplication** - Files saved as `{checksum}.{ext}`, no duplicates
+- **Full control** - Pause, resume, stop, and monitor crawl progress in real-time
+- **Events system** - Subscribe to progress, page crawled, file saved events
+- **Rate limiting** - Token bucket rate limiter to avoid overwhelming servers
+- **Retry with backoff** - Exponential backoff for failed requests
+- **Modular architecture** - Separate components for fetch, parse, storage, queue
+- **Thread-safe queues** - Safe concurrent access for URL and file queues
 
-## Example Usage
+## Installation
+
+```bash
+uv pip install spidey
+```
+
+Or from source:
+
+```bash
+cd spidey
+uv sync
+```
+
+## Quick Start
 
 ```python
 from spidey import Spidey
-import os
 
-folder = os.path.join(os.getcwd(), "data")
-urls_to_crawl = ["https://example.com"]
-crawler = Spidey(urls=urls_to_crawl, extensions=[".png", ".js", ".css"], limited_to_domains=False, max_pages=100, sleep_time=0, folder=folder)
+crawler = Spidey.from_args(
+    urls=["https://example.com"],
+    extensions=[".svg", ".png", ".jpg"],
+    max_pages=100,
+    folder="data"
+)
 
 crawler.crawl()
 ```
 
+## Full Control Example
+
+```python
+from spidey import Spidey
+import threading
+import time
+
+# Create crawler
+crawler = Spidey.from_args(
+    urls=["https://example.com"],
+    extensions=[".svg", ".png", ".jpg"],
+    num_workers=5,
+    max_pages=50,
+    folder="data"
+)
+
+# Subscribe to events
+crawler.on("progress", lambda e: print(f"Progress: {e.data}"))
+crawler.on("file_saved", lambda e: print(f"Saved: {e.data['checksum'][:16]}..."))
+crawler.on("crawl_complete", lambda e: print(f"Done! {e.data}"))
+
+# Run in background thread for external control
+t = threading.Thread(target=crawler.crawl)
+t.start()
+
+# Control while running
+time.sleep(5)
+crawler.pause()
+print("Paused...")
+
+time.sleep(2)
+crawler.resume()
+print("Resumed...")
+
+# Or just run to completion
+# crawler.crawl()
+
+t.join()
+```
+
 ## Configuration Options
 
-| Parameter            | Type      | Description                        | Default  |
-| -------------------- | --------- | ---------------------------------- | -------- |
-| `urls`               | List[str] | Starting URLs to crawl             | Required |
-| `extensions`         | List[str] | File extensions to download        | Required |
-| `limited_to_domains` | bool      | Limit crawling to initial domains  | False    |
-| `max_pages`          | int       | Maximum number of pages to crawl   | 1000     |
-| `sleep_time`         | int       | Delay between requests (seconds)   | 0        |
-| `restricted_domains` | List[str] | Domains to exclude from crawling   | []       |
-| `folder`             | str       | Output folder for downloaded files | ""       |
-| `unique_file_name`   | bool      | Generate unique filenames          | True     |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `urls` | List[str] | Required | Starting URLs to crawl |
+| `extensions` | List[str] | Required | File extensions to download (e.g., `.svg`, `.png`) |
+| `limited_to_domains` | bool | False | Limit crawling to initial domains only |
+| `max_pages` | int | 1000 | Maximum number of pages to crawl |
+| `sleep_time` | float | 0.0 | Delay between requests in seconds |
+| `restricted_domains` | List[str] | [] | Domains to exclude from crawling |
+| `folder` | str | "" | Output folder for downloaded files |
+| `unique_file_name` | bool | True | Generate unique filenames |
+| `num_workers` | int | 10 | Number of concurrent workers |
+| `max_retries` | int | 3 | Maximum retry attempts for failed requests |
+| `retry_delay` | float | 1.0 | Initial retry delay in seconds |
+| `request_timeout` | float | 30.0 | HTTP request timeout in seconds |
+| `max_concurrent_requests` | int | 50 | Maximum concurrent HTTP requests |
 
 ## Output Structure
 
-Files are saved in the following structure:
+Files are organized by extension and named with their SHA256 checksum:
 
 ```
 data/
-    example/
-        files/
-            filename.ext
-        filename.html
-        filename.json
+├── svg/
+│   ├── a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6.svg
+│   └── f7g8h9i0j1k2l3m4n5o6p7q8r9s0t1u2.svg
+├── png/
+│   ├── l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7.png
+│   └── a1b2c3d4e5e6f7g8h9i0j1k2l3m4n5o6.png
+├── jpg/
+├── html/
+└── css/
 ```
 
-## Features in Detail
+This approach ensures:
+- No duplicate files are saved
+- Easy deduplication across runs
+- Quick file identification by checksum
 
-### File Downloads
-- Automatically downloads files with specified extensions (.pdf, .jpg, .png, etc.)
-- Preserves original filenames with optional unique ID generation
-- Organizes downloads by date and domain for easy management
-- Stores metadata including source URL and timestamp
-- Handles both direct file links and embedded resources (images, scripts, stylesheets)
+## Events
 
-### Domain Control
-- Flexible domain scoping with multiple options:
-  - Crawl any linked domain
-  - Restrict to initial domain list only
-  - Exclude specific domains via blocklist
-- Smart domain extraction using tldextract
-- Proper handling of subdomains and TLDs
-- Validation of domain names and URLs
+Subscribe to events for real-time monitoring:
 
-### Asynchronous Operation
-- High-performance concurrent crawling with aiohttp
-- Non-blocking I/O for optimal resource usage
-- Configurable delays between requests to control load
-- Graceful error handling and recovery
-- Progress tracking and status reporting
-- Memory-efficient processing of large sites
+```python
+crawler.on("state_changed", lambda e: print(f"State: {e.data['new']}"))
+crawler.on("progress", lambda e: print(f"Pages: {e.data['pages_visited']}"))
+crawler.on("page_crawled", lambda e: print(f"URL: {e.data['url']}"))
+crawler.on("file_saved", lambda e: print(f"File: {e.data['checksum'][:16]}..."))
+crawler.on("crawl_complete", lambda e: print(f"Complete: {e.data}"))
+```
 
+| Event | Data |
+|-------|------|
+| `state_changed` | `{old: str, new: str}` |
+| `progress` | `{pages_visited, urls_queued, files_saved, files_skipped}` |
+| `page_crawled` | `{url, new_urls, files}` |
+| `file_saved` | `{url, checksum, size}` |
+| `crawl_complete` | `{stats: {...}}` |
+
+## Crawler States
+
+```python
+from spidey import CrawlerState
+
+# Check current state
+print(crawler.state)  # CrawlerState.RUNNING
+
+# States: IDLE, RUNNING, PAUSED, STOPPED, COMPLETED
+```
+
+## Architecture
+
+```
+Spidey (Main Orchestrator)
+    │
+    ├── Controller (State, Stats, Events, Pause/Resume/Stop)
+    │
+    ├── URLQueue (Thread-safe URL batching)
+    │       │
+    │       └── URL Workers (async)
+    │               │
+    │               └── Fetcher (HTTP + retry + rate limit)
+    │               └── Parser (extract URLs and files)
+    │
+    ├── FileQueue (Thread-safe file download queue)
+    │       │
+    │       └── File Workers (async)
+    │               │
+    │               └── Fetcher (download bytes)
+    │               └── Storage (SHA256 dedup + write)
+    │
+    └── Storage (SHA256 deduplication)
+```
+
+### Components
+
+| Component | Responsibility |
+|-----------|---------------|
+| `Config` | All settings with validation |
+| `Controller` | State management, stats, events |
+| `URLQueue` | Thread-safe URL batching |
+| `FileQueue` | Thread-safe file download queue |
+| `Fetcher` | HTTP client with retry & rate limiting |
+| `Parser` | Extract links and files from HTML |
+| `Storage` | SHA256 deduplication & file writes |
 
 ## License
 
-MIT License
-
-Copyright (c) 2024
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-## Contributing
-
-We welcome and appreciate contributions to Spidey! Whether you're fixing bugs, adding features, or improving documentation, here's how you can contribute:
-
-1. Fork the repository to your GitHub account
-2. Create a descriptive feature branch (`git checkout -b feature/add-retry-logic`)
-3. Make focused, well-tested changes
-4. Commit with clear messages (`git commit -m 'Add request retry logic with exponential backoff'`) 
-5. Push changes to your fork (`git push origin feature/add-retry-logic`)
-6. Open a detailed Pull Request describing your changes
-
-### Guidelines
-
-- Follow PEP 8 style guide and match existing code conventions
-- Add comprehensive docstrings and type hints to new code
-- Write descriptive commit messages explaining the why, not just what
-- Include unit tests with good coverage for new functionality
-- Update documentation including docstrings, README, and comments
-- Keep pull requests focused on a single feature or fix
-- Run the full test suite before submitting
-
-### Development Setup
-
-1. Clone your fork: `git clone https://github.com/YOUR_USERNAME/spidey.git`
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   venv\Scripts\activate     # Windows
-   ```
-3. Install dependencies: `pip install -r requirements.txt`
-4. Install dev dependencies: `pip install black mypy`
-5. Create a branch: `git checkout -b your-feature-name`
-6. Make changes
-7. Format code: `black .`
-
-For significant changes, please open an issue first to discuss your proposed changes. This ensures alignment with project goals and helps avoid duplicate work. We aim to review all pull requests within a week.
+MIT License - See LICENSE file

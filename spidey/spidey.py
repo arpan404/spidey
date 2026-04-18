@@ -1,235 +1,355 @@
-# Standard library imports
 import asyncio
-from collections import deque
-from time import sleep
-from typing import List, Set
+import hashlib
+import logging
+import threading
+from typing import List, Optional, Set
 
-# Third party imports
-import aiohttp
-from bs4 import BeautifulSoup
 import tldextract
 import validators
 
-# Local imports
-from spidey.file import File
-from spidey.webpage import Webpage
+from .config import Config
+from .exceptions import ValidationError
+from .fetcher import Fetcher
+from .parser import Parser
+from .queue import URLQueue
+from .file_queue import FileQueue
+from .storage import Storage
+from .webpage import Webpage
+from .controller import Controller, CrawlerState, CrawlStats, CrawlEvent
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 class Spidey:
     """
-    A web crawler class that crawls web pages and downloads files with specified extensions.
+    A robust, modular asynchronous web crawler with full control.
+    
+    Features:
+    - Pause/Resume/Stop control
+    - Real-time stats and events
+    - Thread-safe queues
+    - SHA256 deduplication
     """
 
-    def __init__(
-        self,
+    def __init__(self, config: Config):
+        self._config = config
+        self._url_queue = URLQueue()
+        self._file_queue = FileQueue()
+        self._storage = Storage(config.folder)
+        self._visited_pages: Set[str] = set()
+        self._visited_pages_lock = threading.Lock()
+        self._initial_domains: Set[str] = set()
+        self._controller = Controller()
+
+    @classmethod
+    def from_args(
+        cls,
         urls: List[str],
         extensions: List[str],
         limited_to_domains: bool = False,
         max_pages: int = 1000,
-        sleep_time: int = 0,
-        restricted_domains: List[str] = [],
-        folder="",
-        unique_file_name=True,
+        sleep_time: float = 0,
+        restricted_domains: Optional[List[str]] = None,
+        folder: str = "",
+        unique_file_name: bool = True,
+        num_workers: int = 10,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        request_timeout: float = 30.0,
+        max_concurrent_requests: int = 50,
     ):
-        """
-        Initialize the Spidey crawler.
+        """Create Spidey instance from constructor arguments."""
+        config = Config(
+            urls=urls,
+            extensions=extensions,
+            limited_to_domains=limited_to_domains,
+            max_pages=max_pages,
+            sleep_time=sleep_time,
+            restricted_domains=restricted_domains or [],
+            folder=folder,
+            unique_file_name=unique_file_name,
+            num_workers=num_workers,
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+            request_timeout=request_timeout,
+            max_concurrent_requests=max_concurrent_requests,
+        )
+        return cls(config)
 
-        Args:
-            urls: List of starting URLs to crawl
-            extensions: List of file extensions to download
-            limited_to_domains: Whether to limit crawling to initial domains only
-            max_pages: Maximum number of pages to crawl
-            sleep_time: Time to sleep between requests in seconds
-            restricted_domains: List of domains to exclude from crawling
-            folder: Output folder for downloaded files
-            unique_file_name: Whether to generate unique filenames
-        """
-        self.__urls = deque(urls)
-        self.__visited_urls: Set[str] = set()
-        self.__total_urls: int = len(urls)
-        self.__limited_to_domains = limited_to_domains
-        self.__extensions = extensions
-        self.__sleep_time = sleep_time
-        self.__restricted_domains = restricted_domains
-        self.__initial_domains = set()
-        self.__max_pages: int = max_pages
-        self.__folder = folder
-        self.__unique_file_name = unique_file_name
+    @property
+    def state(self) -> CrawlerState:
+        """Current crawler state."""
+        return self._controller.state
+
+    @property
+    def stats(self) -> CrawlStats:
+        """Current crawl statistics."""
+        return self._controller.get_stats()
+
+    def on(self, event_type: str, callback):
+        """Register event listener."""
+        self._controller.on(event_type, callback)
+
+    def off(self, event_type: str, callback):
+        """Unregister event listener."""
+        self._controller.off(event_type, callback)
+
+    def pause(self):
+        """Pause the crawler."""
+        self._controller.pause()
+        logger.info("Crawler paused")
+
+    def resume(self):
+        """Resume the crawler."""
+        self._controller.resume()
+        logger.info("Crawler resumed")
+
+    def stop(self):
+        """Stop the crawler."""
+        self._controller.stop()
+        logger.info("Crawler stopped")
 
     def crawl(self):
-        """Start the crawling process by running the spider."""
-        asyncio.run(self.__spider())
+        """Start the crawling process."""
+        self._controller.start()
+        asyncio.run(self._spider())
+        self._controller.complete()
+        logger.info("Crawl completed")
 
-    async def __spider(self):
-        """
-        Main crawling logic that processes URLs and downloads content.
-        Extracts links and files from pages while respecting domain restrictions.
-        """
+    async def _spider(self):
+        """Main crawling orchestrator."""
+        async with Fetcher(self._config) as fetcher:
+            await self._init_domains()
+
+            url_workers = [
+                asyncio.create_task(self._url_worker(i, fetcher))
+                for i in range(self._config.num_workers)
+            ]
+
+            file_workers = [
+                asyncio.create_task(self._file_worker(i, fetcher))
+                for i in range(self._config.num_workers)
+            ]
+
+            monitor_task = asyncio.create_task(self._monitor_progress())
+
+            await asyncio.gather(*url_workers, return_exceptions=True)
+
+            self._controller.set_state(CrawlerState.STOPPED)
+
+            await asyncio.gather(*file_workers, return_exceptions=True)
+            monitor_task.cancel()
+
+            self._print_stats(fetcher)
+
+    async def _init_domains(self):
+        """Extract initial domains from starting URLs."""
+        initial = self._url_queue.get_batch(self._url_queue.size())
+        for url in initial:
+            domain = self._get_url_domain(url)
+            self._initial_domains.add(domain)
+        self._url_queue.add_batch(initial)
+
+    async def _monitor_progress(self):
+        """Monitor and report progress."""
+        while self._controller.state != CrawlerState.STOPPED:
+            await self._controller.wait_if_paused()
+            await asyncio.sleep(5)
+
+            if self._controller.is_stopped():
+                break
+
+            url_count = self._url_queue.size()
+            page_count = len(self._visited_pages)
+            storage_stats = self._storage.get_stats()
+
+            stats = {
+                "pages_visited": page_count,
+                "urls_queued": url_count,
+                "files_saved": storage_stats["files_saved"],
+                "files_skipped": storage_stats["files_skipped"],
+            }
+            self._controller.update_stats(**stats)
+
+            logger.info(
+                f"Progress: Pages={page_count}/{self._config.max_pages}, "
+                f"URLs queued={url_count}, Files saved={storage_stats['files_saved']}, "
+                f"Skipped={storage_stats['files_skipped']}"
+            )
+
+            self._controller.emit_event("progress", stats)
+
+            if url_count == 0 and page_count >= self._config.max_pages // 2:
+                break
+
+    async def _url_worker(self, worker_id: int, fetcher: Fetcher):
+        """Worker that fetches URLs and extracts new URLs/files."""
+        while self._controller.state != CrawlerState.STOPPED:
+            await self._controller.wait_if_paused()
+
+            batch = self._url_queue.get_batch(5)
+            if not batch:
+                await asyncio.sleep(0.5)
+                continue
+
+            tasks = [self._process_url(url, fetcher) for url in batch]
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            if self._config.sleep_time > 0:
+                await asyncio.sleep(self._config.sleep_time)
+
+    async def _process_url(self, url: str, fetcher: Fetcher):
+        """Fetch and process a single URL."""
         try:
-            # Get initial domains from starting URLs
-            for url in self.__urls:
-                self.__initial_domains.add(self.get_url_domain(url))
+            if self._controller.is_stopped():
+                return
 
-            while self.__urls:
-                url = self.__urls.popleft()
+            with self._visited_pages_lock:
+                if url in self._visited_pages:
+                    return
+                self._visited_pages.add(url)
 
-                # Skip if URL was already visited
-                if url in self.__visited_urls:
-                    continue
+            html = await fetcher.fetch(url)
+            if not html:
+                return
 
-                # Skip if domain is restricted
-                if self.get_url_domain(url) in self.__restricted_domains:
-                    continue
+            new_page_urls = Parser.extract_page_urls(html, url)
+            filtered_urls = [u for u in new_page_urls if self._is_allowed(u)]
+            self._url_queue.add_batch(filtered_urls)
 
-                # Skip if outside initial domains when limited
-                if self.__limited_to_domains:
-                    if self.get_url_domain(url) not in self.__initial_domains:
-                        continue
+            self._controller.increment_stats(urls_discovered=len(filtered_urls))
 
-                # Fetch and parse page content
-                response = await self.__fetch_data(url)
-                if response is None:
-                    continue
-                webpage = Webpage(url)
+            file_urls = Parser.extract_file_urls(html, url)
+            for file_url in file_urls:
+                if self._is_allowed_file(file_url):
+                    self._file_queue.put(file_url, url)
 
-                page_data = BeautifulSoup(response, "html.parser")
-                webpage.page_html_data = page_data
+            self._controller.emit_event("page_crawled", {
+                "url": url,
+                "new_urls": len(filtered_urls),
+                "files": len(file_urls)
+            })
 
-                # Extract and process links from page
-                pages_urls = set(
-                    link.get("href")
-                    for link in page_data.find_all("a")
-                    if link.get("href")
-                )
+            logger.debug(f"Processed {url}: {len(filtered_urls)} new URLs, {len(file_urls)} files")
 
-                if pages_urls:
-                    processed_urls = self.__process_urls(url, pages_urls)
-                    print(f"\nFound {len(processed_urls)} URLs on {url}")
-                    self.__total_urls += len(processed_urls)
-                    self.__urls.extend(processed_urls)
-
-                self.__visited_urls.add(url)
-
-                # Extract URLs of embedded files (images, scripts, etc)
-                files_urls = set(
-                    link.get(attr)
-                    for link in page_data.find_all(
-                        ["img", "link", "script", "video", "source"]
-                    )
-                    for attr in ["href", "src"]
-                    if link.get(attr)
-                )
-
-                if files_urls:
-                    processed_urls = self.__process_urls(url, files_urls)
-                    validated_urls = processed_urls.copy()
-                    for url in processed_urls:
-                        if url in self.__visited_urls:
-                            validated_urls.remove(url)
-
-                    webpage.files_url = validated_urls
-
-                # Save webpage and associated files
-                file = File(webpage, self.__folder)
-                await file.save(self.__unique_file_name, self.__extensions)
-
-                # Stop if max pages reached
-                if len(self.__visited_urls) == self.__max_pages:
-                    break
-
-                sleep(self.__sleep_time)
         except Exception as e:
-            print(f"An error occurred: {e}")
+            logger.error(f"Error processing {url}: {e}")
+            self._controller.increment_stats(requests_failed=1)
 
-    def get_url_domain(self, url):
-        """
-        Extract domain from URL.
+    async def _file_worker(self, worker_id: int, fetcher: Fetcher):
+        """Worker that downloads files."""
+        while self._controller.state != CrawlerState.STOPPED:
+            await self._controller.wait_if_paused()
 
-        Args:
-            url: URL to extract domain from
+            task = self._file_queue.get()
+            if task is None:
+                await asyncio.sleep(0.5)
+                continue
 
-        Returns:
-            Domain name with TLD (e.g. 'example.com')
-        """
+            url, referrer = task
+            await self._download_file(url, referrer, fetcher)
+
+    async def _download_file(self, url: str, referrer: str, fetcher: Fetcher):
+        """Download a file and save it."""
+        try:
+            if self._controller.is_stopped():
+                return
+
+            content = await fetcher.fetch_bytes(url, referrer)
+            if not content:
+                return
+
+            checksum = hashlib.sha256(content).hexdigest()
+
+            if self._file_queue.is_processed(checksum):
+                return
+
+            saved_path = await self._storage.save_file(url, content)
+
+            if saved_path:
+                self._controller.increment_stats(
+                    files_saved=1,
+                    bytes_downloaded=len(content)
+                )
+                self._controller.emit_event("file_saved", {
+                    "url": url,
+                    "checksum": checksum,
+                    "size": len(content)
+                })
+            else:
+                self._controller.increment_stats(files_skipped=1)
+
+            self._file_queue.mark_processed(checksum)
+
+        except Exception as e:
+            logger.error(f"Error downloading {url}: {e}")
+
+    def _is_allowed(self, url: str) -> bool:
+        """Check if URL is allowed based on domain restrictions."""
+        if not validators.url(url):
+            return False
+
+        domain = self._get_url_domain(url)
+
+        if domain in self._config.restricted_domains:
+            return False
+
+        if self._config.limited_to_domains:
+            if domain not in self._initial_domains:
+                return False
+
+        return True
+
+    def _is_allowed_file(self, url: str) -> bool:
+        """Check if file extension is in allowed list."""
+        if not validators.url(url):
+            return False
+
+        ext = self._get_file_extension(url)
+        return ext in self._config.allowed_extensions
+
+    def _get_url_domain(self, url: str) -> str:
+        """Extract domain from URL."""
         extracted = tldextract.extract(url)
         return f"{extracted.domain}.{extracted.suffix}"
 
-    async def __fetch_data(self, url: str):
-        """
-        Fetch webpage content from URL.
+    def _get_file_extension(self, url: str) -> str:
+        """Extract file extension from URL."""
+        from urllib.parse import urlsplit
+        path = urlsplit(url).path
+        ext = path.rsplit(".", 1)[-1] if "." in path else ""
+        return f".{ext.lower()}" if ext else ""
 
-        Args:
-            url: URL to fetch
+    def _print_stats(self, fetcher: Fetcher):
+        """Print final statistics."""
+        fetcher_stats = fetcher.get_stats()
+        storage_stats = self._storage.get_stats()
+        final_stats = self._controller.get_stats()
 
-        Returns:
-            Page content as text, or None if fetch fails
-        """
-        try:
-            if not isinstance(url, str):
-                raise ValueError(
-                    f"The URL must be a string, but got {
-                                 type(url).__name__}"
-                )
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    response.raise_for_status()
-                    return await response.text()
-        except:
-            return None
+        logger.info("=" * 50)
+        logger.info("Crawl Statistics")
+        logger.info("=" * 50)
+        logger.info(f"Pages visited: {final_stats.pages_visited}")
+        logger.info(f"URLs discovered: {final_stats.urls_discovered}")
+        logger.info(f"URLs in queue: {self._url_queue.size()}")
+        logger.info(f"Files saved: {final_stats.files_saved}")
+        logger.info(f"Files skipped (duplicates): {final_stats.files_skipped}")
+        logger.info(f"Total requests: {fetcher_stats['total_requests']}")
+        logger.info(f"Successful requests: {fetcher_stats['successful_requests']}")
+        logger.info(f"Failed requests: {fetcher_stats['failed_requests']}")
+        logger.info(f"Retries: {fetcher_stats['retries']}")
+        logger.info(f"Duration: {final_stats.duration:.2f}s")
+        logger.info("=" * 50)
 
-    def __is_url(self, url: str) -> bool:
-        """
-        Validate if string is a valid URL.
-
-        Args:
-            url: String to validate
-
-        Returns:
-            True if valid URL, False otherwise
-        """
-        try:
-            return validators.url(url)
-        except Exception as e:
-            raise e
-
-    def __process_urls(self, current_url: str, urls: Set[str]) -> Set[str]:
-        """
-        Process and normalize relative URLs to absolute URLs.
-
-        Args:
-            current_url: Base URL for resolving relative URLs
-            urls: Set of URLs to process
-
-        Returns:
-            Set of processed absolute URLs
-        """
-        try:
-            processed_urls: Set[str] = set()
-            for url in urls:
-                if url is None:
-                    continue
-
-                if self.__is_url(url):
-                    processed_urls.add(url)
-                else:
-                    if url[0] != "#":
-                        url_components = current_url.strip().split("/")
-                        url_components.pop()
-
-                        if url.startswith("../"):
-                            total_dashes = url.count("../")
-                            for i in range(total_dashes):
-                                url_components.pop()
-                                url.replace("../", "", 1)
-                                if not url.startswith("../"):
-                                    break
-
-                        if url[0] == "/":
-                            url = url[1:]
-                        url_components.append(url)
-                        new_url = "/".join(url_components)
-                        processed_urls.add(new_url)
-        except Exception as e:
-            print(e)
-
-        return processed_urls
+        self._controller.emit_event("crawl_complete", {
+            "stats": {
+                "pages_visited": final_stats.pages_visited,
+                "files_saved": final_stats.files_saved,
+                "duration": final_stats.duration
+            }
+        })

@@ -1,0 +1,55 @@
+[project]
+name = "spidey"
+version = "1.0.0"
+description = "A robust, modular asynchronous web crawler with SHA256 deduplication, pause/resume control, and real-time events"
+authors = [
+    { name = "Arpan Bhandari", email = "contact@arpan.sh" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+keywords = ["web", "crawler", "spider", "async", "download", "scrape", "scraper"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries",
+]
+
+dependencies = [
+    "aiohttp>=3.9.0",
+    "aiofiles>=22.0.0",
+    "beautifulsoup4>=4.12.0",
+    "tldextract>=5.0.0",
+    "validators>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "mypy",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/arpan404/spidey"
+Repository = "https://github.com/arpan404/spidey"
+Issues = "https://github.com/arpan404/spidey/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "black",
+    "mypy",
+    "ruff",
+]
