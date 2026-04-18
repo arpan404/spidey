@@ -1,6 +1,6 @@
 [project]
 name = "spidey"
-version = "1.0.0"
+version = "1.5.0"
 description = "A robust, modular asynchronous web crawler with SHA256 deduplication, pause/resume control, and real-time events"
 authors = [
     { name = "Arpan Bhandari", email = "contact@arpan.sh" }
